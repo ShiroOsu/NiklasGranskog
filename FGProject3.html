@@ -1,0 +1,248 @@
+﻿<!DOCTYPE HTML>
+<!--
+    Massively by HTML5 UP
+    html5up.net | @ajlkn
+    Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+<head>
+    <title>FG Project 1</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="assets/css/main.css" />
+    <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
+
+</head>
+<body class="is-preload">
+
+    <!-- Wrapper -->
+    <div id="wrapper">
+
+        <link rel="stylesheet" href="/assets/css/styles/darcula.css">
+        <script src="/assets/js/highlight.pack.js"></script>
+        <script>hljs.initHighlightingOnLoad();</script>
+
+        <div id="intro">
+            <h1>FG Project 1</h1>
+        </div>
+
+        <!-- Nav -->
+        <nav id="nav">
+            <ul class="links">
+                <li><a href="index.html">Home</a></li>
+            </ul>
+            <ul class="icons">
+                <li><a href="https://www.linkedin.com/in/niklas-granskog-884565178/" class="icon brands fa-linkedin"><span class="label">Linkedin</span></a></li>
+                <li><a href="https://github.com/ShiroOsu" class="icon brands fa-github"><span class="label">GitHub</span></a></li>
+            </ul>
+        </nav>
+
+        <!-- Main -->
+        <div id="main">
+            <div id="description">
+                <h1>
+                    Nim
+                </h1>
+                <p>
+                    7 Week long game project in 3D using Unity, with students at FutureGames.<br />
+                    As a Game Programmer I made a spawning system for enemies with utilization of an Objectpool.
+                    Aswell as how to spawn enemies.
+                </p>
+            </div>
+            <details>
+                <summary>Objectpool</summary>
+                <pre>
+                <code class="csharp" style="font-size: 14px">
+public class ObjectPool : MonoBehaviour
+{
+ // Pool size.
+    public const int DEFAULT_POOL_SIZE = 10;
+
+    // Index name.
+    public const string DEFAULT_NAME = "Pooled";
+
+    // The Pool class represents the pool for a particular GameObject(prefab).
+    class Pool
+    {
+
+        // Index for pooled prefabs.
+        int nextID = 0;
+
+        // Stack("Pool") of inactive GameObjects.
+        Stack<GameObject> inactive;
+
+        // GameObject to spawn.
+        GameObject prefab;
+
+        // Empty GameObject to clean up hierarchy.
+        GameObject parent;
+
+        public Pool(GameObject prefab, int initialQuantity)
+        {
+            this.prefab = prefab;
+
+            // Naming of our Empty GameObject in hierarchy.
+            parent = new GameObject(prefab.name + "'s");
+
+            inactive = new Stack<GameObject>(initialQuantity);
+        }
+
+        // Spawn Object from pool.
+        // position, rotation, name
+        public GameObject Spawn(Vector3 pos, Quaternion rot, string name = DEFAULT_NAME)
+        {
+            GameObject gameObject;
+
+            // If our ObjectPool is empty,
+            // instantiate a new object.
+            if (inactive.Count == 0)
+            {
+                gameObject = (GameObject)Instantiate(prefab, pos, rot);
+                gameObject.name = prefab.name + "(" + name + " " + (nextID++) + ")";
+
+                // PoolMember component to know what pool object belongs to.
+                gameObject.AddComponent<PoolMember>().myPool = this;
+            }
+            else
+            {
+                // Otherwise, grab the last object in the pool.
+                gameObject = inactive.Pop();
+
+                // If the expected object no longer exists try next sequence.
+                if (gameObject == null)
+                {
+                    return Spawn(pos, rot);
+                }
+            }
+
+            gameObject.transform.parent = parent.transform;
+            gameObject.transform.position = pos;
+            gameObject.transform.rotation = rot;
+            gameObject.SetActive(true);
+            return gameObject;
+        }
+
+        // Return an Object to the inactive pool.
+        public void Despawn(GameObject gameObject)
+        {
+            gameObject.SetActive(false);
+            inactive.Push(gameObject);
+        }
+
+    }
+
+    // Added to newly instantiated objects to link back to correct pool.
+    class PoolMember : MonoBehaviour
+    {
+        public Pool myPool;
+    }
+
+
+    // All pools.
+    static Dictionary<GameObject, Pool> pools;
+
+    // Initialize Dictionary.
+    static void Init(GameObject prefab = null, int qty = DEFAULT_POOL_SIZE)
+    {
+        if (pools == null)
+        {
+            pools = new Dictionary<GameObject, Pool>();
+        }
+
+        if (prefab != null && pools.ContainsKey(prefab) == false)
+        {
+            pools[prefab] = new Pool(prefab, qty);
+        }
+    }
+
+    // Preload copies of an GameObject at the start of a scene.
+    static public void Preload(GameObject prefab, int qty = DEFAULT_POOL_SIZE, string name = DEFAULT_NAME)
+    {
+        Init(prefab, qty);
+
+        // Make an Array to grab all of the objects we are about to pre-load.
+        GameObject[] gameObjects = new GameObject[qty];
+
+        for (int i = 0; i < qty; i++)
+        {
+            gameObjects[i] = Spawn(prefab, Vector3.zero, Quaternion.identity, name);
+        }
+
+        // Despawn the objects.
+        for (int i = 0; i < qty; i++)
+        {
+            Despawn(gameObjects[i]);
+        }
+
+    }
+
+    // Spawns a copy of the specified prefab.
+    static public GameObject Spawn(GameObject prefab, Vector3 pos, Quaternion rot, string name = DEFAULT_NAME)
+    {
+        Init(prefab);
+
+        return pools[prefab].Spawn(pos, rot, name);
+    }
+
+    // Despawn the specified GameObject into its pool.
+    static public void Despawn(GameObject gameObject)
+    {
+        PoolMember poolMember = gameObject.GetComponent<PoolMember>();
+
+        if (poolMember == null)
+        {
+            Debug.Log("Objects '" + gameObject.name +"' wasn't spawned from a pool. Destroying it instead.");
+            GameObject.Destroy(gameObject);
+        }
+        else
+        {
+            poolMember.myPool.Despawn(gameObject);
+        }
+    }
+}
+
+
+                </code>
+                </pre>
+            </details>
+
+            <details><summary>Timer Spawn</summary>
+            <pre>
+<code class="csharp"style="font-size: 14px">
+private void TimerSpawn()
+{
+    spawnTimer += Time.deltaTime;
+
+    if (spawnTimer >= initialSpawnTime)
+    {
+        initialSpawnTime = 0;
+
+        if (spawnTimer >= spawnCooldown)
+        {
+            for (int i = 0; i < spawnPos.Count; i++)
+            {
+                Spawn(prefabToSpawn, spawnPos[i].position, Quaternion.identity);
+            }
+            spawnTimer = 0;
+        }
+    }
+}
+
+</code>
+
+</pre>
+            </details>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="assets/js/jquery.min.js"></script>
+    <script src="assets/js/jquery.scrollex.min.js"></script>
+    <script src="assets/js/jquery.scrolly.min.js"></script>
+    <script src="assets/js/browser.min.js"></script>
+    <script src="assets/js/breakpoints.min.js"></script>
+    <script src="assets/js/util.js"></script>
+    <script src="assets/js/main.js"></script>
+
+</body>
+</html>

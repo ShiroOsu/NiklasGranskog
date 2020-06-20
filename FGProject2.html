@@ -51,10 +51,9 @@
             </div>
 
             <!-- Post -->
-            <details>
-                <summary>Targeting Ray</summary>
+            <section class="post">
                 <pre>
-                <code style="font-size: 14px">
+                <code class="cpp">
 void ACPP_Character::TargetingRay()
 {
     FVector EndPoint = (Camera->GetForwardVector() * TargetRange) + Camera->GetComponentLocation();
@@ -73,52 +72,8 @@ void ACPP_Character::TargetingRay()
 }
                     </code>
                     </pre>
-            </details>
-            <details>
-                <summary>Locking To Target</summary>
-                <pre>
-                <code style="font-size: 14px">
-void ACPP_Character::LockingToTarget()
-{
-    if (bLockedOnTarget)
-    {
-        FRotator CameraLookRotation = UKismetMathLibrary::FindLookAtRotation(Camera->GetComponentLocation(), CurrentTargetableActor->GetActorLocation());
-        FRotator PlayerLookRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), CurrentTargetableActor->GetActorLocation());
+            </section>
 
-        SetActorRotation(UKismetMathLibrary::MakeRotator(0, 0, PlayerLookRotation.Yaw));
-        PlayerMesh->SetWorldRotation(FRotator(0, PlayerLookRotation.Yaw, 0));
-        CameraBoom->SetWorldRotation(FRotator(CameraLookRotation.Pitch, PlayerLookRotation.Yaw - 2f, 0));
-
-        if (CurrentTargetAbleActor->GetDistance(this) > TargetRange)
-        {
-            UnTargetActor();
-        }                   
-}                  
-                    </code>
-                    </pre>
-            </details>
-            <details>
-                <summary>Get Closest Actor</summary>
-                <pre><code style="font-size: 14px">
-AActor* ACPP_Character::GetClosestActor()
-{
-    float ActorDistance = TNumericLimits<flaot>::Max();
-    AActor* ActorToReturn = nullptr;
-
-    for (AActor* Actor : TargetableActorsArray)
-    {
-        float Distance = FVector::DistSquared(GetActorLocation(), Actor->GetActorLocation());
-
-        if (Distance < ActorDistance && Actor != CurrentTargetableActor)
-        {
-            ActorDistance = Distance;
-            ActorToReturn = Actor;
-        }
-    }
-    return ActorToReturn;
-}
-                </code></pre>
-            </details>
         </div>
     </div>
 
