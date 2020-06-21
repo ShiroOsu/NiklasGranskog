@@ -6,7 +6,7 @@
 -->
 <html>
 <head>
-    <title>FG Project 1</title>
+    <title>FG Solo Project</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="assets/css/main.css" />
@@ -23,13 +23,14 @@
         <script>hljs.initHighlightingOnLoad();</script>
 
         <div id="intro">
-            <h1>FG Project 1</h1>
+            <h1>FG Solo Project</h1>
         </div>
 
         <!-- Nav -->
         <nav id="nav">
             <ul class="links">
                 <li><a href="index.html">Home</a></li>
+                <li><a href="cv.html">CV</a></li>
             </ul>
             <ul class="icons">
                 <li><a href="https://www.linkedin.com/in/niklas-granskog-884565178/" class="icon brands fa-linkedin"><span class="label">Linkedin</span></a></li>
@@ -41,38 +42,508 @@
         <div id="main">
             <div id="description">
                 <h1>
-                    Nim
+                    Solo Project
                 </h1>
                 <p>
-                    4 Week long game project in 3D using Unreal Engine 4, with students at FutureGames.<br />
-                    As a 'Game Programmer' I worked on a system for targeting important object in the world.<br />
-                    Which involed raycasting and checking if objects was in the players viewport.
+                    10 Week long game project in 2D using Unity.<br />
+                    For this project I challenged myself with networking in Unity with Mirror. <br />
                 </p>
             </div>
 
-            <!-- Post -->
-            <section class="post">
-                <pre>
-                <code class="cpp">
-void ACPP_Character::TargetingRay()
+            <details> <summary> Enemy AI </summary>
+            <pre>
+<code class="csharp" style="font-size: 14px">
+public class AI : NetworkBehaviour
 {
-    FVector EndPoint = (Camera->GetForwardVector() * TargetRange) + Camera->GetComponentLocation();
-     
-    if ((UKismetSystemLibrary::LineTraceSingle(GetWorld(), Camera->GetComponentLocation(), EndPoint, UEngineTypes::ConvertToTraceType(ECC_Target),
-                    false, ActorsToIgnore, EDrawDebugTrace::None, OutHit, false, FColor::Green, FColor::Red, 2f)))
-                    {
-                        FollowCameraVec = PlayerMesh->GetForwardVector();
-                        FollowCameraPos = Camera->GetComponentLocation();
-                        ActorPosition = OutHit.GetActor()->GetActorLocation();
-                        CheckInView = (ActorPosition - FollowCameraPos); CheckInView.Normalize();
-                        ActorBehindCamera = FVector::DotProduct(FollowCameraVec, CheckInView);
+    [Header("AI Settings")]
+    public float maxHealth = 10f;
+    [SyncVar] public float currentHealth;
+    [SerializeField] private float speed = 2f;
+    public float damage = 1f;
+    public Transform attackPointRight;
+    public Transform attackPointLeft;
+    public float attackRange = 1f;
+    public float attackRate = 0.25f;
 
-                        bIsHit = true;
-                    } else { bIsHit = false; }
+    public Vector2 dir { get; private set; }
+    private bool hurtCd = false;
+
+    [Header("Detection Settings")]
+    [SerializeField] private float maxDetectionDistance = 8f;
+    public float detectionRadius = 5f;
+    public float sqrCurrDistance { get; set; }
+    public float sqrMaxDistance => maxDetectionDistance * maxDetectionDistance;
+
+    [Header("AI Components")]
+    public Health healthBar;
+
+    // AI components
+    public Collider2D[] detectionCircle { get; set; }
+    public GameObject playerObject { get; set; }
+    public StateMachine<AI> stateMachine { get; private set; }
+    public FollowState followState { get; private set; }
+    public PatrolState patrolState { get; private set; }
+    public AttackState attackState { get; private set; }
+    public Animator animator { get; private set; }
+    public SpriteRenderer spriteRenderer { get; private set; }
+    public LayerMask enemyMask { get; private set; }
+    public LayerMask groundMask { get; private set; }
+
+    private string[] ground = { StringData.groundLayer };
+    private string[] enemy = { StringData.enemyLayer };
+
+    public enum AnimState
+    {
+        idle,
+        combat,
+        run,
+    }
+
+    private void Start()
+    {
+        followState = new FollowState();
+        patrolState = new PatrolState();
+        attackState = new AttackState();
+
+        animator = GetComponent<Animator>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+
+        stateMachine = new StateMachine<AI>(this);
+        stateMachine.ChangeState(patrolState);
+
+        enemyMask = LayerMask.GetMask(enemy);
+        groundMask = LayerMask.GetMask(ground);
+
+        currentHealth = maxHealth;
+        healthBar.SetMaxHealth(maxHealth);
+    }
+
+    private void Update()
+    {
+        UpdateDistanceToPlayer();
+
+        stateMachine.UpdateState();
+
+        FlipSpriteX();
+    }
+
+    private void UpdateDistanceToPlayer()
+    {
+        if (playerObject != null)
+        {
+            sqrCurrDistance = (playerObject.transform.position - transform.position).sqrMagnitude;
+        }
+    }
+
+    public void PatrolMove(Vector2 direction)
+    {
+        RpcAIPatrol(direction);
+        RpcAnimState(AnimState.run);
+    }
+
+    public void FollowMove()
+    {
+        RpcAIFollow();
+        RpcAnimState(AnimState.run);
+    }
+
+    public void TakeDamage(float damage)
+    {
+        currentHealth -= damage;
+        healthBar.SetHealth(currentHealth);
+
+        if (currentHealth <= 0f)
+        {
+            RpcDieAnimation();
+            return;
+        }
+
+        if (currentHealth > 0f & !hurtCd)
+        {
+            RpcHurtAnimation();
+            hurtCd = true;
+            StartCoroutine(HurtAnimCd(1.5f));
+        }
+    }
+
+    private IEnumerator HurtAnimCd(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        hurtCd = false;
+    }
+
+    private IEnumerator Die(float delay)
+    {
+        if (gameObject == null)
+            yield break;
+
+        animator.StopPlayback();
+        animator.SetTrigger(StringData.death);
+        yield return new WaitForSeconds(delay);
+        Spawner.SpawnWhenDied(1);
+        RestoreHealth(gameObject);
+        ObjectPool.Despawn(gameObject);
+    }
+
+    private void HurtAnimation()
+    {
+        animator.SetTrigger(StringData.hurt);
+    }
+
+    public bool AnimationIsPlaying(string state)
+    {
+        return animator.GetCurrentAnimatorStateInfo(0).IsName(state);
+    }
+
+    public void AttackAnimation()
+    {
+        RpcAttackAnimation();
+    }
+
+    public void SetDirection(Vector2 direction)
+    {
+        dir = direction;
+    }
+
+    private void FlipSpriteX()
+    {
+        if (playerObject != null)
+        {
+            var playerDir = playerObject.GetComponent<Player>().GetDirInput;
+
+            if (playerDir.x < 0f)
+            {
+                SetDirection((-1) * playerDir);
+            }
+            else if (playerDir.x > 0f)
+            {
+                SetDirection((-1) * playerDir);
+            }
+        }
+
+        if (Mathf.Abs(dir.x) > Mathf.Epsilon)
+        {
+            spriteRenderer.flipX = dir.x > 0f;
+        }
+    }
+
+    // When de-spawning a killed enemy, restore its health so next time it wont spawn with 0 health
+    private void RestoreHealth(GameObject enemy)
+    {
+        var oldAI = enemy.GetComponent<AI>();
+
+        if (oldAI != null)
+        {
+            if (oldAI.currentHealth <= 0f)
+            {
+                oldAI.currentHealth = oldAI.maxHealth;
+                healthBar.SetHealth(oldAI.currentHealth);
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void RpcAIFollow()
+    {
+        // Move towards playerObjects location (x axis)
+        transform.position = Vector2.MoveTowards(transform.position,
+            new Vector2(playerObject.transform.position.x, transform.position.y), speed * Time.deltaTime);
+    }
+
+    [ClientRpc]
+    private void RpcAIPatrol(Vector2 direction)
+    {
+        transform.Translate(direction * speed * Time.deltaTime);
+    }
+
+    [ClientRpc]
+    private void RpcHurtAnimation()
+    {
+        HurtAnimation();
+    }
+
+    [ClientRpc]
+    private void RpcDieAnimation()
+    {
+        StartCoroutine(Die(1f));
+    }
+
+    [ClientRpc]
+    public void RpcAttackAnimation()
+    {
+        animator.SetTrigger(StringData.attack);
+    }
+
+    [ClientRpc]
+    public void RpcAnimState(AnimState animation)
+    {
+        animator.SetInteger(StringData.animState, (int)animation);
+    }
+
+
+</code>
+</pre>
+
+            </details>
+            <details><summary>State Machine</summary>
+                     <pre>
+<code class="csharp" style="font-size: 14px">
+[System.Serializable]
+public class StateMachine<T>
+{
+    public iState<T> currentState { get; private set; }
+    public T owner;
+
+    public StateMachine(T owner)
+    {
+        this.owner = owner;
+        currentState = null;
+    }
+
+    public void ChangeState(iState<T> newState)
+    {
+        if (currentState != null)
+        {
+            currentState.ExitState(owner); 
+        }
+
+        currentState = newState;
+        currentState.EnterState(owner);
+    }
+
+    public void UpdateState()
+    {
+        if (currentState != null)
+        {
+            currentState.UpdateState(owner);
+        }
+    }
 }
-                    </code>
-                    </pre>
-            </section>
+
+public interface iState<T>
+{
+    void EnterState(T owner);
+    void ExitState(T owner);
+    void UpdateState(T owner);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+// One of the states the AI uses.
+public class PatrolState : iState<AI>
+{
+    private bool rightWall;
+    private bool leftWall;
+    private Vector2 direction;
+    private Vector2 boxSize = new Vector2(0.15f, 1.15f);
+    private float distance = 0.15f;
+
+    public void EnterState(AI owner)
+    {
+        // When spawning a AI in an open Area it will not know if it
+        // should start walking to the left or right
+        if (direction.x == 0f)
+        {
+            System.Random rand = new System.Random();
+            direction = rand.Next(2) == 1 ? Vector2.right : Vector2.left;
+        }
+
+        Debug.Log("Entering PatrolState.");
+    }
+
+    public void ExitState(AI owner)
+    {
+        Debug.Log("Exiting PatrolState.");
+    }
+
+    public void UpdateState(AI owner)
+    {
+        if (owner.playerObject)
+        {
+            owner.stateMachine.ChangeState(owner.followState);
+            return;
+        }
+
+        if (!owner.playerObject)
+        {
+            DetectNearbyPlayer(owner);
+        }
+
+        Patrol(owner);
+    }
+
+    private void DetectNearbyPlayer(AI owner)
+    {
+        owner.detectionCircle = Physics2D.OverlapCircleAll(owner.transform.position, owner.detectionRadius);
+
+        foreach (var col in owner.detectionCircle)
+        {
+            var player = col.GetComponent<Player>();
+
+            if (player != null && player.GetHP > 0f)
+            {
+                owner.playerObject = player.gameObject;
+                return;
+            }
+        }
+    }
+
+    private void Patrol(AI owner)
+    {
+        HorizontalCollision(owner);
+
+        if (rightWall)
+        {
+            direction = Vector2.left;
+        }
+        else if (leftWall)
+        {
+            direction = Vector2.right;
+        }
+
+        owner.SetDirection(direction);
+        owner.PatrolMove(direction);
+    }
+
+    private void HorizontalCollision(AI owner)
+    {
+        Vector2 originRight = new Vector2(owner.transform.position.x + 0.5f, owner.transform.position.y + 0.65f);
+        Vector2 originLeft = new Vector2(owner.transform.position.x - 0.5f, owner.transform.position.y + 0.65f);
+        Vector2 origin = direction.x == 1 ? originRight : originLeft;
+
+        RayAndBoxCast(owner, origin, direction, boxSize, distance);
+    }
+
+    private void RayAndBoxCast(AI owner, Vector2 origin, Vector2 direction, Vector2 boxSize, float distance)
+    {
+        // Don't know why but the 'right' ray-cast distance needs to be longer.
+        if (direction.x == 1)
+            distance = 0.3f;
+
+        RaycastHit2D wallHit = Physics2D.BoxCast(origin, boxSize, 0f, direction, distance, owner.groundMask);
+        RaycastHit2D enemyHit = Physics2D.Raycast(origin, direction, distance, owner.enemyMask);
+
+        if (wallHit)
+        {
+            rightWall = direction.x == 1;
+            leftWall = direction.x == -1;
+        }
+
+        if (enemyHit.collider != null)
+        {
+            var enemyID = enemyHit.collider.gameObject.GetInstanceID();
+            var thisID = owner.gameObject.GetInstanceID();
+
+            rightWall = enemyID != thisID && direction.x == 1;
+            leftWall = enemyID != thisID && direction.x == -1;
+        }
+    }
+}
+</code>
+</pre>
+
+            </details>
+
+            <details><summary>Chat for connected players</summary>
+                     <pre>
+<code class="csharp" style="font-size: 14px">
+public class ChatBehaviour : NetworkBehaviour
+{
+    [SerializeField] private GameObject chatUI = null;
+    [SerializeField] private TMP_Text chatText = null;
+    [SerializeField] private TMP_InputField inputField = null;
+    private PlayerController controller = null;
+
+    private static event Action<string> OnMessage;
+
+    public bool isActive { get; private set; }
+
+    public override void OnStartAuthority()
+    {
+        base.OnStartAuthority();
+        chatUI.SetActive(true);
+
+        controller = GetComponent<PlayerController>();
+
+        isActive = false;
+        inputField.gameObject.SetActive(isActive);
+
+        OnMessage += HandleNewMessage;
+    }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.T) && !isActive)
+        {
+            ToggleChat();
+        }
+
+        if (IsExitingChat())
+        { 
+            ToggleChat(); 
+        }
+    }
+
+    private bool IsExitingChat()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape) && isActive)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ToggleChat()
+    {
+        isActive = !isActive;
+
+        inputField.gameObject.SetActive(isActive);
+
+        // while we are in "chat mode" disable movement code
+        controller.DeactivateScript(!isActive);
+    }
+
+    [ClientCallback]
+    private void OnDestroy()
+    {
+        if (!hasAuthority)
+            return;
+
+        OnMessage -= HandleNewMessage;
+    }
+
+    private void HandleNewMessage(string message)
+    {
+        chatText.text += message;
+    }
+
+    [Client]
+    public void Send(string message)
+    {
+        if (!Input.GetKeyDown(KeyCode.Return))
+            return;
+
+        CmdSendMessage(message);
+        inputField.text = string.Empty;
+    }
+
+    [Command]
+    private void CmdSendMessage(string message)
+    {
+        RpcHandleMessage($"[{connectionToClient.connectionId}]: {message}");
+    }
+
+    [ClientRpc]
+    private void RpcHandleMessage(string message)
+    {
+        OnMessage?.Invoke($"\n{message}");
+    }
+}
+</code>
+</pre>
+
+            </details>
 
         </div>
     </div>
