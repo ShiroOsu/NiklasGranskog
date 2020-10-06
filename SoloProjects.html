@@ -6,11 +6,11 @@
 -->
 <html>
 <head>
-    <title>FG Solo Project</title>
+    <title>Solo Projects</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="assets/css/main.css" />
-    <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
+    <!--<noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>-->
 
 </head>
 <body class="is-preload">
@@ -23,7 +23,7 @@
         <script>hljs.initHighlightingOnLoad();</script>
 
         <div id="intro">
-            <h1>FG Solo Project</h1>
+            <h1>Solo Projects</h1>
         </div>
 
         <!-- Nav -->
@@ -42,18 +42,20 @@
         <div id="main">
             <div id="description">
                 <h1>
-                    Solo Project
+                    Networking Project FG
                 </h1>
+                <img src="images/DegreeProject.png" width="150" height="100" />
                 <p>
                     10 Week long game project in 2D using Unity.<br />
-                    This project was a challenge for myself with networking in Unity with the use of Mirror. <br />
-                    The whole project is avaliable on my <a href="https://github.com/ShiroOsu/FG-Degree-Project">Github</a>.<br />
+                    This project was a challenge to handle networking in Unity with the use of Mirror. <br />
+                    <a href="https://github.com/ShiroOsu/FG-Degree-Project/tree/master/DegreeProject/Assets/Scripts">Project Source Code</a>.<br />
 
                 </p>
             </div>
 
-            <details> <summary> Enemy AI </summary>
-            <pre>
+            <details>
+                <summary>Enemy AI </summary>
+                <pre>
 <code class="csharp" style="font-size: 14px">
 public class AI : NetworkBehaviour
 {
@@ -287,8 +289,9 @@ public class AI : NetworkBehaviour
 </pre>
 
             </details>
-            <details><summary>State Machine</summary>
-                     <pre>
+            <details>
+                <summary>State Machine</summary>
+                <pre>
 <code class="csharp" style="font-size: 14px">
 [System.Serializable]
 public class StateMachine<T>
@@ -446,8 +449,9 @@ public class PatrolState : iState<AI>
 
             </details>
 
-            <details><summary>Chat for connected players</summary>
-                     <pre>
+            <details>
+                <summary>Communication for connected players</summary>
+                <pre>
 <code class="csharp" style="font-size: 14px">
 public class ChatBehaviour : NetworkBehaviour
 {
@@ -550,14 +554,134 @@ public class ChatBehaviour : NetworkBehaviour
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="assets/js/jquery.min.js"></script>
-    <script src="assets/js/jquery.scrollex.min.js"></script>
-    <script src="assets/js/jquery.scrolly.min.js"></script>
-    <script src="assets/js/browser.min.js"></script>
-    <script src="assets/js/breakpoints.min.js"></script>
-    <script src="assets/js/util.js"></script>
-    <script src="assets/js/main.js"></script>
+    <div id="main">
+        <div id="description">
+            <h1>
+                Interaction Project
+            </h1>
+            <img src="images/InteractProject.png" width="250" height="100" />
+            <p>
+                Character & Interaction Project in Unity <br />
+                This project is centered about the player character.<br />
+                Such as what can the player interact with in the world. <br />
+                <a href="https://github.com/ShiroOsu/Project2020/tree/master/Assets/Code">Project Source Code</a>.<br />
+
+            </p>
+
+            <details>
+                <summary>Interaction</summary>
+                <pre>
+                <code class="csharp" style="font-size: 14px">
+public class LookForInteractable : MonoBehaviour, PlayerControls.IInteractionActions
+{
+    [SerializeField] private InteractableData m_IData = null;
+    [SerializeField] private GameObject m_InteractableText = null;
+    private PlayerControls m_PlayerControls;
+    private IInteractable m_Interactable;
+    private LayerMask m_InteractableLayer;
+
+    private Vector3 m_Point1;
+    private Vector3 m_Point2;
+    private readonly Vector3 m_PointOffset = new Vector3(0f, 1f, 0f);
+
+    private void Awake()
+    {
+        m_PlayerControls = new PlayerControls();
+        m_PlayerControls.Interaction.SetCallbacks(this);
+
+        if (!m_IData)
+        {
+            m_IData = ScriptableObject.CreateInstance<InteractableData>();
+        }
+
+        m_InteractableLayer = m_IData.interactLayer;
+    }
+
+    public void OnInteract(InputAction.CallbackContext context)
+    {
+        if (m_Interactable == null)
+            return;
+
+        m_Interactable.Interact();
+
+        if (!m_Interactable.IsInAnimation())
+        {
+            m_InteractableText.SetActive(false);
+        }
+    }
+
+    private void Update()
+    {
+        if (IsThereNearbyInteractable())
+        {
+            SweepForInteraction();
+        } else { m_InteractableText.SetActive(false); }
+    }
+
+    private bool IsThereNearbyInteractable()
+    {
+        var objWithInteract = Physics.OverlapSphere(transform.position, 3f, m_InteractableLayer);
+
+        foreach (var obj in objWithInteract)
+        {
+            if (!obj.gameObject.GetComponent(typeof(IInteractable)))
+                continue;
+
+            return true;
+        }
+        return false;
+    }
+
+    private IInteractable SweepForInteraction()
+    {
+        UpdateCapsulePoints();
+
+        var interactables = Physics.CapsuleCastAll(m_Point1, m_Point2, 0.6f, Vector3.down, 1f, m_InteractableLayer);
+
+        foreach (var hit in interactables)
+        {
+            if (m_Interactable != null)
+            {
+                // only active while close to object, and remove it after interaction
+                // so only set it to true once
+                m_InteractableText.SetActive(true);
+            }
+
+            return m_Interactable = hit.transform.gameObject.GetComponent(typeof(IInteractable)) as IInteractable;
+        }
+        return null;
+    }
+
+    private void UpdateCapsulePoints()
+    {
+        m_Point1 = transform.position + transform.forward;
+        m_Point2 = transform.position + m_PointOffset + transform.forward;
+    }
+
+    private void OnEnable()
+    {
+        m_PlayerControls.Enable();
+    }
+
+    private void OnDisable()
+    {
+        m_PlayerControls.Disable();
+    }
+</code>
+
+</pre>
+            </details>
+
+        </div>
+
+        <!-- Scripts -->
+        <script src="assets/js/jquery.min.js"></script>
+        <script src="assets/js/jquery.scrollex.min.js"></script>
+        <script src="assets/js/jquery.scrolly.min.js"></script>
+        <script src="assets/js/browser.min.js"></script>
+        <script src="assets/js/breakpoints.min.js"></script>
+        <script src="assets/js/util.js"></script>
+        <script src="assets/js/main.js"></script>
 
 </body>
 </html>
