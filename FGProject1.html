@@ -10,17 +10,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="assets/css/main.css" />
-    <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
 
 </head>
 <body class="is-preload">
 
     <!-- Wrapper -->
     <div id="wrapper">
-
-        <link rel="stylesheet" href="/assets/css/styles/darcula.css">
-        <script src="/assets/js/highlight.pack.js"></script>
-        <script>hljs.initHighlightingOnLoad();</script>
 
         <div id="intro">
             <h1>FG Project 1</h1>
@@ -55,7 +50,7 @@
             <details>
                 <summary>Targeting Ray</summary>
                 <pre>
-                <code style="font-size: 14px">
+                <code class="prettyprint"style="font-size: 14px">
 void ACPP_Character::TargetingRay()
 {
     FVector EndPoint = (Camera->GetForwardVector() * TargetRange) + Camera->GetComponentLocation();
@@ -78,7 +73,7 @@ void ACPP_Character::TargetingRay()
             <details>
                 <summary>Locking To Target</summary>
                 <pre>
-                <code style="font-size: 14px">
+                <code class="prettyprint"style="font-size: 14px">
 void ACPP_Character::LockingToTarget()
 {
     if (bLockedOnTarget)
@@ -100,7 +95,7 @@ void ACPP_Character::LockingToTarget()
             </details>
             <details>
                 <summary>Get Closest Actor</summary>
-                <pre><code style="font-size: 14px">
+                <pre><code class="prettyprint"style="font-size: 14px">
 AActor* ACPP_Character::GetClosestActor()
 {
     float ActorDistance = TNumericLimits<flaot>::Max();
@@ -124,6 +119,7 @@ AActor* ACPP_Character::GetClosestActor()
     </div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?lang=css&amp;skin=sunburst"></script>
     <script src="assets/js/jquery.min.js"></script>
     <script src="assets/js/jquery.scrollex.min.js"></script>
     <script src="assets/js/jquery.scrolly.min.js"></script>

@@ -10,17 +10,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="assets/css/main.css" />
-    <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
 
 </head>
 <body class="is-preload">
 
     <!-- Wrapper -->
     <div id="wrapper">
-
-        <link rel="stylesheet" href="/assets/css/styles/darcula.css">
-        <script src="/assets/js/highlight.pack.js"></script>
-        <script>hljs.initHighlightingOnLoad();</script>
 
         <div id="intro">
             <h1>Solo Projects</h1>
@@ -56,7 +51,7 @@
             <details>
                 <summary>Enemy AI </summary>
                 <pre>
-<code class="csharp" style="font-size: 14px">
+<code class="prettyprint" style="font-size: 14px">
 public class AI : NetworkBehaviour
 {
     [Header("AI Settings")]
@@ -292,7 +287,7 @@ public class AI : NetworkBehaviour
             <details>
                 <summary>State Machine</summary>
                 <pre>
-<code class="csharp" style="font-size: 14px">
+<code class="prettyprint" style="font-size: 14px">
 [System.Serializable]
 public class StateMachine<T>
 {
@@ -452,7 +447,7 @@ public class PatrolState : iState<AI>
             <details>
                 <summary>Communication for connected players</summary>
                 <pre>
-<code class="csharp" style="font-size: 14px">
+<code class="prettyprint" style="font-size: 14px">
 public class ChatBehaviour : NetworkBehaviour
 {
     [SerializeField] private GameObject chatUI = null;
@@ -571,7 +566,7 @@ public class ChatBehaviour : NetworkBehaviour
             <details>
                 <summary>Interaction</summary>
                 <pre>
-                <code class="csharp" style="font-size: 14px">
+                <code class="prettyprint" style="font-size: 14px">
 public class LookForInteractable : MonoBehaviour, PlayerControls.IInteractionActions
 {
     [SerializeField] private InteractableData m_IData = null;
@@ -665,6 +660,7 @@ public class LookForInteractable : MonoBehaviour, PlayerControls.IInteractionAct
     {
         m_PlayerControls.Disable();
     }
+}
 </code>
 
 </pre>
@@ -673,6 +669,7 @@ public class LookForInteractable : MonoBehaviour, PlayerControls.IInteractionAct
         </div>
 
         <!-- Scripts -->
+        <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?lang=css&amp;skin=sunburst"></script>
         <script src="assets/js/jquery.min.js"></script>
         <script src="assets/js/jquery.scrollex.min.js"></script>
         <script src="assets/js/jquery.scrolly.min.js"></script>

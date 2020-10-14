@@ -10,17 +10,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <link rel="stylesheet" href="assets/css/main.css" />
-    <noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
 
 </head>
 <body class="is-preload">
 
     <!-- Wrapper -->
     <div id="wrapper">
-
-        <link rel="stylesheet" href="/assets/css/styles/darcula.css">
-        <script src="/assets/js/highlight.pack.js"></script>
-        <script>hljs.initHighlightingOnLoad();</script>
 
         <div id="intro">
             <h1>FG Project 3</h1>
@@ -53,7 +48,7 @@
             <details>
                 <summary>Objectpool</summary>
                 <pre>
-                <code class="csharp" style="font-size: 14px">
+                <code class="prettyprint" style="font-size: 14px">
 public class ObjectPool : MonoBehaviour
 {
  // Pool size.
@@ -207,9 +202,10 @@ public class ObjectPool : MonoBehaviour
                 </pre>
             </details>
 
-            <details><summary>Spawn on Timer</summary>
-            <pre>
-<code class="csharp"style="font-size: 14px">
+            <details>
+                <summary>Spawn on Timer</summary>
+                <pre>
+<code class="prettyprint" style="font-size: 14px">
 private void TimerSpawn()
 {
     spawnTimer += Time.deltaTime;
@@ -237,6 +233,7 @@ private void TimerSpawn()
     </div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?lang=css&amp;skin=sunburst"></script>
     <script src="assets/js/jquery.min.js"></script>
     <script src="assets/js/jquery.scrollex.min.js"></script>
     <script src="assets/js/jquery.scrolly.min.js"></script>
