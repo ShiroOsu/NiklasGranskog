@@ -1,0 +1,718 @@
+﻿<!DOCTYPE HTML>
+<!--
+    Massively by HTML5 UP
+    html5up.net | @ajlkn
+    Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+<head>
+    <title>FG Project 4</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body class="is-preload">
+
+    <!-- Wrapper -->
+    <div id="wrapper">
+
+        <div id="intro">
+            <h1>FG Project 4</h1>
+        </div>
+
+        <!-- Nav -->
+        <nav id="nav">
+            <ul class="links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="cv.html">CV</a></li>
+            </ul>
+            <ul class="icons">
+                <li><a href="https://www.linkedin.com/in/niklas-granskog-884565178/" class="icon brands fa-linkedin"><span class="label">Linkedin</span></a></li>
+                <li><a href="https://github.com/ShiroOsu" class="icon brands fa-github"><span class="label">GitHub</span></a></li>
+            </ul>
+        </nav>
+
+        <!-- Main -->
+        <div id="main">
+            <div id="description">
+                <h1>
+                    FG Project 4 - Citadel
+                </h1>
+                <img src="" width="150" height="100" />
+                <p>
+                    Game project with students at Futuregames in Unity3D.<br />
+                    During this project I worked with the Enemy AI, Menu UI, Options UI and Item Drops(Loot Table). <br />
+                </p>
+            </div>
+
+            <details>
+                <summary>
+				Enemy AI
+					<p> For the AI we used Unity's NavMesh Agent and a State Machine.</p>
+				</summary>
+                <pre>
+					<code class="prettyprint" style="font-size: 14px">
+public class AI : Character, ITaggable<GameObject>, ISavable
+{
+	[Header("AI Components")]
+	[SerializeField] private ProjectileData m_ProjectileData;
+	[SerializeField] private Transform m_Eyes;
+	private ElementState m_CurrentElement;
+
+	[Header("Agent Settings")]
+	[SerializeField] private float m_Speed = 3.5f;
+	[SerializeField] private float m_TurnSpeed = 5f;
+	[SerializeField] private float m_Acceleration = 8f;
+	[SerializeField] protected Bar healthBar;
+
+	[Header("Detection Settings")]
+	[SerializeField] private float m_PlayerDetectionRadius = 10f;
+	[SerializeField] private float m_MaximumAttackRange = 10f;
+	[SerializeField] private float m_AIAttackRange = 5f;
+	[SerializeField] private LayerMask m_PlayerLayer;
+	private Vector3 m_DestinationNearPlayer = Vector3.zero;
+
+	[SerializeField] private LayerMask m_GroundLayer;
+	[SerializeField] [Range(0f, -10f)] private float m_FallSpeedAfterPushBack = -3f;
+	[SerializeField] public float m_FallSpeedDeathTreshhold = 5f;
+
+
+	private IState<AI> m_StateOnSave = null;
+	private GameObject m_PlayerTargetOnSave = null;
+
+	private Vector3 m_Vector3Infinity = Vector3.one * Mathf.Infinity;
+	public float SqrMaxAttackRange => m_MaximumAttackRange * m_MaximumAttackRange;
+	public float SqrDetectionRadius => m_PlayerDetectionRadius * m_PlayerDetectionRadius;
+	public float SqrAttackRange => m_AIAttackRange * m_AIAttackRange;
+	public float PlayerDetectionRadius => m_PlayerDetectionRadius;
+	public bool CanSeePlayer { get; set; } = false;
+	public bool IsTagged { get; set; } = false;
+	public bool IsOnGround { get; set; } = false;
+	public Vector3 LastKnownTargetPosition { get; set; } = default;
+
+
+	public LayerMask PlayerLayer
+	{
+		get => m_PlayerLayer;
+		set => m_PlayerLayer = value;
+	}
+	
+	public override float StunTime
+	{
+		get => m_StunTime;
+
+		set
+		{
+			if (Agent)
+			{
+				Agent.enabled = false;
+			}
+			StopCharging(m_ProjectileData.ElementType);
+			m_StunTime = value + Time.time;
+		}
+	}
+
+	private Vector3 m_RandomDirection = Vector3.zero;
+	private float m_AttackTimer = 0f;
+	private bool ShowDebugThings = false;
+	
+	// AI Components
+	protected override Vector3 MovementVector => Agent.desiredVelocity;
+	protected override float Hp { set { healthBar.SetValue(value); base.Hp = value; } }
+	protected override float ChargingMovementSpeedMultiplier => m_CastWeight * m_ProjectileData.ChargingMovementSpeedDividend;
+	protected override Vector3 AimTargetPosition => PlayerTarget ? PlayerTarget.transform.position : transform.position;
+	public NavMeshAgent Agent { get; private set; }
+	public StateMachine<AI> StateMachine { get; private set; }
+	public Idle IdleState { get; private set; }
+	public Follow FollowState { get; private set; }
+	public Attack AttackState { get; private set; }
+	public AISearch SearchState { get; private set; }
+	public Rigidbody Rigidbody { get; private set; }
+	public GameObject PlayerTarget { get; set; }
+	public bool ObjectActiveOnSave { get; set; }
+
+	private LineRenderer m_Line;
+
+	public event Action OnTag;
+
+	private void Start()
+	{
+		Rigidbody = GetComponent<Rigidbody>();
+		m_Line = gameObject.AddComponent<LineRenderer>();
+
+		IdleState = new Idle();
+		FollowState = new Follow();
+		AttackState = new Attack();
+		SearchState = new AISearch();
+		StateMachine = new StateMachine<AI>(this);
+	
+		StateMachine.ChangeState(IdleState);
+
+		AgentSetup();
+		
+		switch (m_ProjectileData.ElementType)
+		{
+			case ElementType.Fire:
+				SpellColor = Color.red;
+				break;
+			case ElementType.Ice:
+				SpellColor = Color.blue;
+				break;
+			case ElementType.Lightning:
+				SpellColor = Color.white;
+				break;
+			case ElementType.Oil:
+				SpellColor = Color.green;
+				break;
+		}
+		m_SpellBasedMaterial.SetColor("_EmissiveColor", SpellColor * m_MaxEmissionIntensity / 2f);
+	}
+
+	public override void Update()
+	{
+		base.Update();
+		DebugAgentPath();
+		AIOnGround();
+		
+		if (PlayerTarget)
+		{
+			PlayerInLineOfSight(m_Eyes.position, DirectionToPlayer(transform.position, PlayerTarget.transform.position));
+		}
+
+		PlayerIsDead();
+
+		if (Agent.enabled)
+		{
+			StateMachine.UpdateState();
+			UpdateLookRotation();
+		}
+	}
+
+	protected override void Die()
+	{
+		base.Die();
+		StopCharging(m_ProjectileData.ElementType);
+		this.enabled = false;
+		healthBar.gameObject.SetActive(false);
+		DropItem(transform.position);
+		healthBar.gameObject.SetActive(false);
+	}
+
+
+	protected override IEnumerator Charge(ProjectileData spell)
+	{
+
+		Agent.SetDestination(transform.position);
+		if (spell.SpellType == SpellType.ChanneledRaycast)
+		{
+			m_LightningPfxParticle.target = PlayerTarget.transform;
+		}
+		StartCoroutine(base.Charge(spell));
+		yield return null;
+	}
+
+	protected override void UpdateChargeVariables(ProjectileData spell)
+	{
+		base.UpdateChargeVariables(spell);
+		if (!CanSeePlayer && m_ChargeCoroutine != null && SqrDistanceToPlayer(transform.position, PlayerTarget.transform.position) > SqrMaxAttackRange)
+			StopCharging(spell.ElementType);
+
+		if (ChargeTimeAccu > spell.TimeToReachFullCharge)
+		{
+			switch (spell.SpellType)
+			{
+				case SpellType.Projectile:
+				case SpellType.TargetAOE:
+					FireProjectile(AimTargetPosition, spell);
+					break;
+				case SpellType.ChanneledRaycast:
+					if (DistanceToPlayer(transform.position, PlayerTarget.transform.position) > m_MaximumAttackRange)
+						StopCharging(spell.ElementType);
+					break;
+			}
+		}
+	}
+
+	private void AgentSetup()
+	{
+		Agent = GetComponent<NavMeshAgent>();
+		Agent.speed = MovementSpeed;
+		Agent.acceleration = m_Acceleration;
+	}
+
+	private void AIOnGround()
+	{
+		IsOnGround = Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, maxDistance: 2f, m_GroundLayer);
+
+		if (!IsOnGround)
+		{
+			IncreaseGravity();
+		}
+
+		if (IsOnGround && !IsStunned)
+		{
+			Agent.enabled = true;
+			if (Rigidbody.velocity.y >= m_FallSpeedDeathTreshhold)
+			Die();
+		}
+	}
+
+	private void IncreaseGravity()
+	{
+		Rigidbody.velocity += Vector3.down * m_FallSpeedAfterPushBack;
+	}
+
+	public bool SetDestinationNearPlayer(Vector3 playerPosition)
+	{
+		if (NavMesh.SamplePosition(playerPosition, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+		{
+			m_DestinationNearPlayer = hit.position;
+			return true;
+		}
+
+		m_DestinationNearPlayer = m_Vector3Infinity;
+		return false;
+	}
+
+	public void GoToNewDestination()
+	{
+		if (m_DestinationNearPlayer == m_Vector3Infinity)
+		return;
+
+		Agent.SetDestination(m_DestinationNearPlayer);
+		Agent.isStopped = false;
+	}
+
+	public void FollowMove()
+	{
+		if (!PlayerTarget)
+		return;
+
+		Vector3 curPos = Agent.transform.position;
+		Vector3 playerPos = PlayerTarget.transform.position;
+		if (SqrDistanceToPlayer(curPos, playerPos) > SqrAttackRange)
+		{
+			Agent.SetDestination(playerPos);
+		}
+	}
+
+	private void MoveBack()
+	{
+		if (!PlayerTarget)
+			return;
+
+		Vector3 curPos = Agent.transform.position;
+		Vector3 playerPos = PlayerTarget.transform.position;
+
+		if (SqrDistanceToPlayer(curPos, playerPos) < SqrAttackRange * 0.1f)
+		{
+			MoveAgent(-DirectionToPlayer(curPos, playerPos), m_Speed);
+		}
+	}
+
+	private void MoveAgent(Vector3 direction, float speed)
+	{
+		Agent.Move(direction * speed * Time.deltaTime);
+	}
+
+	private void UpdateLookRotation()
+	{
+		if (CanSeePlayer && PlayerTarget)
+		{
+			Vector3 direction = DirectionToPlayer(transform.position, PlayerTarget.transform.position);
+			transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), m_TurnSpeed * Time.deltaTime);
+		}
+		else if (m_RandomDirection != Vector3.zero)
+		{
+			Vector3 direction = m_RandomDirection;
+			transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), m_TurnSpeed * Time.deltaTime);
+		}
+	}
+	
+	public Vector3 DirectionToPlayer(Vector3 curPos, Vector3 playerPos)
+	{
+		return (playerPos - curPos).normalized;
+	}
+
+	public float SqrDistanceToPlayer(Vector3 curPos, Vector3 playerPos)
+	{
+		return (playerPos - curPos).sqrMagnitude;
+	}
+
+	public float DistanceToPlayer(Vector3 curPos, Vector3 playerPos)
+	{
+		return (playerPos - curPos).magnitude;
+	}
+
+	private void PlayerInLineOfSight(Vector3 origin, Vector3 direction)
+	{
+		float rayDistance = DistanceToPlayer(origin, PlayerTarget.transform.position);
+		origin += Vector3.up * 0.05f;
+		if (Physics.Raycast(origin, direction, out RaycastHit hit, rayDistance))
+		{
+			if(CanSeePlayer = hit.collider.GetComponent<PlayerController>())
+			{
+				LastKnownTargetPosition = PlayerTarget.transform.position;
+			}
+		}
+	}
+
+	public void AttackPlayer()
+	{
+
+		if (m_CanCharge)
+		{
+			m_ChargeCoroutine = Charge(m_ProjectileData);
+			StartCoroutine(m_ChargeCoroutine);
+		}
+		else if (Agent.remainingDistance <= Agent.stoppingDistance)
+		{
+			if (SqrDistanceToPlayer(transform.position, PlayerTarget.transform.position) <= SqrAttackRange)
+			{
+				MovePerpendicularToDirection(DirectionToPlayer(transform.position, PlayerTarget.transform.position), 1f);
+			}
+			else SetDestinationPerpendicularToDirection(GetClosestPointWithDistanceToTarget(PlayerTarget.transform.position, m_AIAttackRange),
+				 DirectionToPlayer(transform.position, PlayerTarget.transform.position), 1f);
+		}
+	}
+
+	private void MovePerpendicularToDirection(Vector3 dir, float xValue = 1f)
+	{
+		Agent.SetDestination(transform.position + Vector3.Cross(dir, Vector3.up) * xValue);
+	}
+
+	private void SetDestinationPerpendicularToDirection(Vector3 startPos, Vector3 dir, float xValue = 1f)
+	{
+		Agent.SetDestination(startPos + Vector3.Cross(dir, Vector3.up) * xValue);
+	}
+	
+	private Vector3 GetClosestPointWithDistanceToTarget(Vector3 targetPos, float distance)
+	{
+		return targetPos + ((transform.position - targetPos).normalized * distance);
+	}
+			
+	public void SetState(IState<AI> state)
+	{
+		StateMachine.ChangeState(state);
+	}
+
+	private void DropItem(Vector3 spawnPosition)
+	{
+		WeightedLootTable.S_WeightedLootTable.RandomItem(spawnPosition);
+	}
+
+	private void PlayerIsDead()
+	{
+		if (!PlayerTarget)
+			return;
+
+		if (!PlayerTarget.gameObject.activeSelf)
+		{
+			PlayerTarget = null;
+		}
+	}
+
+	private void DebugAgentPath()
+	{
+		if (Input.GetKeyDown(KeyCode.O))
+			ShowDebugThings = !ShowDebugThings;
+										
+		if (ShowDebugThings)
+		{
+			if (Agent.hasPath)
+			{
+				m_Line.positionCount = Agent.path.corners.Length;
+				m_Line.SetPositions(Agent.path.corners);
+				m_Line.enabled = true;
+			}
+			else
+			{
+				m_Line.enabled = false;
+			}
+		}
+		else
+		{
+			m_Line.enabled = false;
+		}
+	}
+
+	public void Tag(GameObject sender)
+	{
+		PlayerTarget = sender;
+		OnTag?.Invoke();
+		LastKnownTargetPosition = sender.transform.position;
+	}
+
+	public void OnSave(StreamWriter sw, out int addedCount)
+	{
+		sw.WriteLine(transform.position.Serialize());
+		sw.WriteLine(transform.rotation.Serialize());
+
+		addedCount = 2;
+		if (StateMachine != null)
+		{
+			m_StateOnSave = StateMachine.currentState;
+		}
+		m_PlayerTargetOnSave = PlayerTarget;
+	}
+
+	public void OnLoad(string[] savedData, int startIndex)
+	{
+		transform.position = savedData[startIndex++].DeserializeToVector3();
+		transform.rotation = savedData[startIndex++].DeserializeToQuaternion();
+
+		if(StateMachine != null && m_StateOnSave != StateMachine.currentState)
+		{
+			SetState(m_StateOnSave);
+		}
+
+		PlayerTarget = m_PlayerTargetOnSave;
+
+		gameObject.SetActive(ObjectActiveOnSave);
+	}
+}
+					</code>
+</pre>
+            </details>
+            <details>
+
+                <summary>Options UI</summary>
+                <pre>
+                <code class="prettyprint" style="font-size: 14px">
+public class PauseMenu : MonoBehaviour
+{
+	[Header("Components")]
+	[SerializeField] private GameManager m_GameManager;
+	[SerializeField] private AudioMixer m_VolumeMixer;
+
+	[Header("UI")]
+	[SerializeField] private GameObject m_PauseMenuUI;
+	[SerializeField] private GameObject m_SettingsMenuUI;
+	[SerializeField] private GameObject m_ControlMenuUI;
+
+	public static bool GameIsPaused { get; private set; }
+
+	private void DisableUI()
+	{
+		m_PauseMenuUI.SetActive(false);
+		m_SettingsMenuUI.SetActive(false);
+	}
+
+	private void Awake()
+	{
+		GameIsPaused = false;
+		DisableUI();
+	}
+
+	private void Update()
+	{
+		if (Input.GetKeyDown(KeyCode.Escape))
+		{
+			if (m_ControlMenuUI.activeInHierarchy)
+			{
+				ControlsBack();
+				return;
+			}
+
+			if (m_SettingsMenuUI.activeInHierarchy)
+			{
+				SettingsBack();
+				return;
+			}
+
+			if (GameIsPaused)
+			{
+				Resume();
+			}
+			else { Pause(); }
+		}
+	}
+
+	private void Pause()
+	{
+		m_PauseMenuUI.SetActive(true);
+		GameIsPaused = true;
+		Time.timeScale = 0f;
+	}
+
+	public void Resume()
+	{
+		m_PauseMenuUI.SetActive(false);
+		GameIsPaused = false;
+		Time.timeScale = 1f;
+	}
+
+	public void MainMenu()
+	{
+		if (m_GameManager.MainMenuSceneName.Length < 1)
+		{
+			Debug.LogError("Main Menu scene name is invalid. Check GameManager");
+			return;
+		}
+
+		SceneManager.LoadScene(m_GameManager.MainMenuSceneName);
+	}
+
+	public void Controls()
+	{
+		m_ControlMenuUI.SetActive(true);
+		m_PauseMenuUI.SetActive(false);
+	}
+
+	public void ControlsBack()
+	{
+		m_ControlMenuUI.SetActive(false);
+		m_PauseMenuUI.SetActive(true);
+	}
+
+	public void Settings()
+	{
+		m_SettingsMenuUI.SetActive(true);
+		m_PauseMenuUI.SetActive(false);
+	}
+
+	public void SettingsBack()
+	{
+		m_SettingsMenuUI.SetActive(false);
+		m_PauseMenuUI.SetActive(true);
+	}
+
+	public void RestartGame()
+	{
+		SceneManager.LoadScene(m_GameManager.GameSceneName);
+
+		if (GameIsPaused)
+		{
+			DisableUI();
+			Resume();
+		}
+	}
+
+	public void SetMusicVolume(float volume)
+	{
+		m_VolumeMixer.SetFloat("MusicVolume", volume);
+	}
+
+	public void SetSoundVolume(float volume)
+	{
+		m_VolumeMixer.SetFloat("SoundVolume", volume);
+	}
+
+	public void SetMasterVolume(float volume)
+	{
+		m_VolumeMixer.SetFloat("MasterVolume", volume);
+	}
+
+	public void QuitGame()
+	{
+#if UNITY_EDITOR
+		UnityEditor.EditorApplication.isPlaying = false;
+#else
+		Application.Quit();
+#endif
+	}
+}
+                    </code>
+</pre>
+            </details>
+			<details>
+				<summary>Weighted Loot Table</summary>
+				<pre>
+					<code class="prettyprint" style="font-size: 14px">
+public class WeightedLootTable : MonoBehaviour
+{
+	[HideInInspector] public GameObject[] m_ItemNames = new GameObject[(int)ItemEnums.ITEM_ENUMS_MAX];
+	[HideInInspector] public uint[] m_ProbabilityToDrop = new uint[(int)ItemEnums.ITEM_ENUMS_MAX];
+	[SerializeField] private ItemEnums[] m_Trackables = new ItemEnums[(int)ItemEnums.ITEM_ENUMS_MAX];
+	[SerializeField] private bool m_IsActive = false;
+	private readonly ObjectPool[] m_ItemPools = new ObjectPool[(int)ItemEnums.ITEM_ENUMS_MAX];
+	private GameObject m_Parent;
+	public static WeightedLootTable S_WeightedLootTable { get; set; }
+
+	public ItemEnums[] Trackables
+	{
+		get => m_Trackables;
+		set => m_Trackables = value;
+	}
+
+	public GameObject[] ItemNames
+	{
+		get => m_ItemNames;
+		set => m_ItemNames = value;
+	}
+
+	public bool IsActive
+	{
+		get => m_IsActive;
+		set => m_IsActive = value;
+	}
+
+	private void Awake()
+	{
+		S_WeightedLootTable = this;
+		CreateObjectPools();
+	}
+
+	private void CreateObjectPools()
+	{
+		for (int i = 0; i < (int)ItemEnums.ITEM_ENUMS_MAX; i++)
+		{
+			if (m_ItemNames[i])
+			{
+				m_Parent = new GameObject("Pool of " + m_ItemNames[i].name);
+				m_Parent.transform.parent = transform;
+
+				m_ItemPools[i] = new ObjectPool(5, m_ItemNames[i], 1, m_Parent.transform);
+			}
+		}
+	}
+
+	private void Spawn(int index, Vector3 spawnPosition)
+	{
+		var loot = m_ItemPools[index]?.Rent(true);
+
+		if (loot == null)
+			return;
+
+		loot.transform.position = spawnPosition;
+	}
+
+	public void RandomItem(Vector3 spawnPosition)
+	{
+		uint range = 0;
+
+		for (int i = 0; i < m_ProbabilityToDrop.Length; i++)
+		{
+			range += m_ProbabilityToDrop[i];
+		}
+
+		uint selected = (uint)Random.Range(0, range);
+		uint topItem = 0;
+
+		for (int i = 0; i < m_ProbabilityToDrop.Length; i++)
+		{
+			topItem += m_ProbabilityToDrop[i];
+
+			if (selected < topItem)
+			{
+				Spawn(i, spawnPosition);
+				return;
+			}
+		}
+	}
+}
+					</code>
+</pre>
+			</details>
+
+            <!-- Scripts -->
+            <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js?lang=css&amp;skin=sunburst"></script>
+            <script src="assets/js/jquery.min.js"></script>
+            <script src="assets/js/jquery.scrollex.min.js"></script>
+            <script src="assets/js/jquery.scrolly.min.js"></script>
+            <script src="assets/js/browser.min.js"></script>
+            <script src="assets/js/breakpoints.min.js"></script>
+            <script src="assets/js/util.js"></script>
+            <script src="assets/js/main.js"></script>
+</body>
+</html>
